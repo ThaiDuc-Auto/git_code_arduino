@@ -1,0 +1,125 @@
+//      -----------------LED MATRIX ------------------------
+//----------------CONG TY TNHH KY THUAT TMKEK---------------
+//   ----------------- WEBSITE: tmktek.com ----------------
+// writen by : TRAN QUANG THAI vs THAI MINH DUC
+// date: 21/07/2022
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <Update.h>
+const char* host = "NodeWifi32";
+const char* ssid = "TMK LAU 1 2.4GHz";
+const char* password = "tmk654321";
+
+#include <EEPROM.h>
+//#include "FreqCountESP.h"
+#include <Wire.h>          
+#include "Config.h"        // CAU HÌNH MATRIX
+#include "Show_Led.h"      // HIEN THI NOI DUNG MATRIX
+#include <SPI.h>
+//#define RXD2 16
+//#define TXD2 17
+
+#define chuyen 36
+#define xoa 35
+#define input 18
+//#define input_2 39
+
+//#define button_1  34 // nut thu 4
+int adress=0;
+int dem_input=0;   
+int dem_input_1;   
+int kt_1;
+int couter_Mode;
+int state_input1=0;
+int state_input2=0;
+int state_chuyen=0;
+int state_xoa=0;
+int state_m=0;
+long startTime;
+
+/// du lieu va code cua latexinclude 
+WebServer server(80);
+void setup()
+{ 
+  EEPROM.begin(10);
+  WiFi.begin(ssid, password);
+  Serial.println("");
+   while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+ 
+  /*use mdns for host name resolution*/
+  if (!MDNS.begin(host)) { //http://esp32.local
+    Serial.println("Error setting up MDNS responder!");
+    while (1) {
+      delay(1000);
+    }
+  }
+  Serial.println("mDNS responder started");
+  /*return index page which is stored in serverIndex */
+  server.on("/", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", loginIndex);
+  });
+  server.on("/serverIndex", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", serverIndex);
+  });
+  /*handling uploading firmware file */
+  server.on("/update", HTTP_POST, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    ESP.restart();
+  }, []() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      /* flashing firmware to ESP*/
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) { //true to set the size to the current progress
+        Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+      } else {
+        Update.printError(Serial);
+      }
+    }
+  });
+  server.begin();
+  dem_input = int(EEPROM.read(adress))*256;
+  dem_input |= int(EEPROM.read(adress+1));
+ 
+  Serial.begin(9600);
+
+  pinMode(xoa, INPUT_PULLUP);
+  pinMode(input, INPUT_PULLUP);
+  //pinMode(chuyen, INPUT_PULLUP);
+  // pinMode(input_2, INPUT_PULLUP);
+  
+  configLedmatrix();
+}int do_dai;
+void loop() 
+{   
+  server.handleClient();
+  delay(1);
+   //code hien thi led matrix
+    vien_doc(0);vien_doc(63); 
+    vien_ngang(0); vien_ngang(31);
+    matrix.setFont(&Font_Thai_design_12_LED7_4so);
+    matrix.setCursor(4,29);
+    matrix.setTextColor(BLUE);
+     matrix.print(89);
+}

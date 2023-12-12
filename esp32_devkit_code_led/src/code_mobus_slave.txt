@@ -1,0 +1,134 @@
+#include <Arduino.h>
+
+//      -----------------LED MATRIX ------------------------
+//----------------CONG TY TNHH KY THUAT TMKEK---------------
+//   ----------------- WEBSITE: tmktek.com ----------------
+// writen by : TRAN QUANG THAI vs THAI MINH DUC
+// date: 21/07/2022
+// HIEN THI NHIET AM TU CAM BIEN
+// LED MATRIX 1 PANEL (32X128) DEMO
+
+#include <SPI.h>
+#include <EEPROM.h>
+#include <Wire.h>          
+#include "Config.h"        // CAU HÌNH MATRIX
+#include "Show_Led.h"
+#include <ModbusRtu.h>
+
+//----------------------------- KHAI BAO CHAN ------------------------------------------
+// assign the Arduino pin that must be connected to RE-DE RS485 transceiver
+#define TXEN  0
+#define RXD2 16
+#define TXD2 17
+
+unsigned long myTime;
+unsigned long time1;
+unsigned long time2;
+unsigned long time3; // thoi gian nhan nut de reset thong so pv
+//--------------------------------KHAI BAO BIEN ---------------------------------------
+int dem_sp;
+int sp;
+int hien_thi_sp;
+int dem;
+
+int adress=0; 
+int timerMs = 1;      
+uint16_t dem_input;    
+int ke_hoach;
+int thuc_te;
+int con_lai;
+  //Modbus slave(1,0,TXEN);// this is slave @1 and RS-485   
+  Modbus slave(1,0,TXEN);
+  uint16_t au16data[16];
+//                -----------------------------------------------------------------------
+//       ---------------------------------  SETUP ----------------------------------------------
+void setup()
+{ 
+  //Serial.begin(9600);
+  slave.begin(19200); // baud-rate at 19200
+  slave.start();
+  EEPROM.begin(20);
+  ke_hoach = int(EEPROM.read(adress))*256;
+  ke_hoach |= int(EEPROM.read(adress+1));
+
+  thuc_te = int(EEPROM.read(adress+2))*256;
+  thuc_te |= int(EEPROM.read(adress+3));
+  
+  au16data[0]=ke_hoach;
+  au16data[1]=thuc_te;
+  
+  time2 = millis(); 
+  configLedmatrix();
+  
+}
+
+//         -----------------------------------------------------------------------
+//-------------------------------- CHUONG TRINH CHINH ---------------------------------------
+void loop() 
+{    
+    //-----------------------------------------------------------------------
+    //code hien thi led matrix
+    vien_doc(0);vien_doc(63);
+    vien_ngang(0);vien_ngang(31);
+    
+    //-----------------------------------------------------------------------   
+    // hien thi led
+    matrix.setTextSize(1);                                      // Size chu hien thi
+    matrix.setFont(&Font_TMK_mini_8);
+    matrix.setTextColor(LED_WHITE_MEDIUM);
+    matrix.setCursor(1,9);
+    matrix.print("PV:");
+    matrix.setCursor(1,19);
+    matrix.setTextColor(LED_WHITE_MEDIUM);
+    matrix.print("SV:");
+    matrix.setCursor(1,30);
+    matrix.setTextColor(LED_WHITE_MEDIUM);
+    matrix.print("ST:");
+//
+//    // hien thi dong thu 2 la cac so nha
+    //matrix.setFont(&Font_Thai_2);
+    matrix.setTextColor(LED_RED_MEDIUM);
+    matrix.setCursor(18,9);
+    matrix.print(ke_hoach);
+    matrix.setTextColor(LED_BLUE_MEDIUM);
+    matrix.setCursor(18,19);
+    matrix.print(thuc_te);
+    matrix.setTextColor(LED_GREEN_MEDIUM);
+    matrix.setCursor(18,30);
+    matrix.print(ke_hoach-thuc_te);
+    if ((unsigned long)(millis()-time2)>10000)   // thoi gian lay mau cho toc do speed
+      { 
+        thuc_te++;
+        time2 = millis();
+        clear_vitri1(18,19,5);
+        clear_vitri1(18,30,5);
+         EEPROM.write(adress+2,thuc_te/256);
+         EEPROM.write(adress+3,thuc_te%256);
+         EEPROM.commit();
+         au16data[1]=thuc_te;
+      }
+     else  if(au16data[0]!=ke_hoach)
+      {
+        time2 = millis();
+        ke_hoach=au16data[0];
+        EEPROM.write(adress,ke_hoach/256);
+        EEPROM.write(adress+1,ke_hoach%256);
+        EEPROM.commit();
+        //clear_vitri1(8,19,5);
+        clear_vitri1(18,30,5);
+        clear_vitri1(18,9,5);
+
+       }
+      else  if(au16data[1]!=thuc_te)
+      {
+        time2 = millis();
+        thuc_te=au16data[1];
+        EEPROM.write(adress+2,thuc_te/256);
+        EEPROM.write(adress+3,thuc_te%256);
+        EEPROM.commit();
+        clear_vitri1(18,19,5);
+        clear_vitri1(18,30,5);
+       }
+     
+    slave.poll( au16data, 16 );
+}

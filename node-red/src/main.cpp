@@ -1,0 +1,94 @@
+#include <Arduino.h>
+
+#include <Arduino.h>
+#include <WiFiClient.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char *ssid = "ChiSen";
+const char *password = "12347788";
+const char *mqtt_server = "192.168.1.20";
+const int mqtt_port = 1883;
+const char *mqtt_id = "esp8266";
+
+const char *topic_publish_1="topic_publish_1";
+const char *topic_subscribe_1="topic_subscribe_1";
+//const char *topic_sub= "to-esp32";topic_publish_1
+//const char *topic_publish="from-esp32";
+// mqtt in : subscrice
+// mqtt out: publish
+// config 
+int count=0;
+unsigned long fist_timer=0;
+
+WiFiClient client;
+PubSubClient mqtt_client(client);
+
+void callback(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("Recived data from: ");
+  Serial.println(topic);// nhan du lieu tu topic
+  Serial.print("Message: ");
+  for (size_t i = 0; i < length; i++) // quart phan tu trong mang va in ra tin nhan
+  {
+    // dang la kieu char chuyen sang kieu du lieu ascii
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+  Serial.println("------------------------------------------");
+}
+
+void setup()
+{
+  Serial.begin(9600);
+  Serial.print("Connecting to Wifi... ");
+  Serial.print(ssid);
+  Serial.println();
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.print("Connected to Wifi ");
+  Serial.println(ssid);
+  Serial.print("IP Address: ");
+  Serial.print(WiFi.localIP());
+  Serial.println();
+  delay(1000);
+
+  mqtt_client.setServer(mqtt_server, mqtt_port);
+  mqtt_client.setCallback(callback);
+
+  Serial.println("Connecting to mqtt... ");
+  while (!mqtt_client.connect(mqtt_id))
+  {
+    delay(500);
+  }
+  Serial.println("Connected to mqtt ");
+  mqtt_client.subscribe("to-esp8266"); // co the viet no thanh topic nhe
+  mqtt_client.publish("from-esp8266", "Hello Server"); // from-esp82266 co the khai bâ dang tppic nha
+}
+
+void send_to_number()
+{
+  if(millis()- fist_timer>=200)
+  {
+    fist_timer=millis();
+    count++;
+    if(count>=100)
+    {
+       count=0;
+    }
+    if(mqtt_client.connected())
+    {
+       mqtt_client.publish(topic_publish_1,String(count).c_str()); // string or char ép kiêu cho no nha
+    }
+  }
+}
+
+void loop()
+{
+  mqtt_client.loop();
+  send_to_number();
+}
